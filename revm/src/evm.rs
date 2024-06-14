@@ -1,13 +1,12 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    database::{State, VmState},
+    database::{StateDB, VmState},
     post_state::{PostAccount, Receipt},
     utils::AddressConverter,
     PostState,
 };
 use bytes::Bytes;
-use protos::ledger::LedgerHeader;
 use revm::{
     db::{AccountState, CacheDB, DatabaseRef},
     primitives::{
@@ -17,7 +16,7 @@ use revm::{
     },
     EVM,
 };
-use state::CacheState;
+
 use types::{error::VmError, SignedTransaction};
 
 pub struct EvmVM {
@@ -25,8 +24,8 @@ pub struct EvmVM {
 }
 
 impl EvmVM {
-    pub(crate) fn new(cache_state: CacheState) -> Self {
-        let vm_state = VmState::new(State::new(cache_state.clone()));
+    pub(crate) fn new() -> Self {
+        let vm_state = VmState::new(StateDB::new());
         let mut evm = EVM::new();
         evm.database(vm_state);
 

@@ -1,5 +1,5 @@
 [package]
-name = "vm"
+name = "revm"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,7 +14,7 @@ ledger-store = { path = "../storage/ledger-store", version = "0.1.0" }
 state-store = { path = "../storage/state-store", version = "0.1.0" }
 protos = { path = "../protos", version = "0.1.0" }
 protobuf = { version = "2.27.1", features = ["with-bytes"] }
-wasmtime ={version = "9.0.0"}
+wasmtime = { version = "9.0.0" }
 anyhow = "1.0.62"
 
 tracing = { version = "0.1", default-features = false }
@@ -23,4 +23,4 @@ primitive-types = { version = "0.12", default-features = false }
 
 hex = { version = "0.4", default-features = false }
 bytes = "1.4.0"
-syscontract = {path = "../syscontract", version = "0.1.0"}
+syscontract = { path = "../syscontract", version = "0.1.0" }
