@@ -1,8 +1,10 @@
 [package]
-name = "revm-stm1"
+name = "revm-stm"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+evm = { path = "./evm", version = "0.1.0" }
+parallel = { path = "./parallel", version = "0.1.0" }

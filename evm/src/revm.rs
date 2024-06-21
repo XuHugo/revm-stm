@@ -1,33 +1,24 @@
-use std::collections::BTreeMap;
-
-use crate::{
-    database::{StateDB, VmState},
-    post_state::{PostAccount, Receipt},
-    utils::AddressConverter,
-    PostState,
-};
 use bytes::Bytes;
 use revm::{
     db::{AccountState, CacheDB, DatabaseRef},
     primitives::{
         hash_map::{self, Entry},
-        Account as RevmAccount, AccountInfo, AnalysisKind, BlockEnv, CfgEnv, ExecutionResult,
-        Output, ResultAndState, TransactTo, TxEnv, B160, B256, KECCAK_EMPTY, U256,
+        Account, AccountInfo, Address, AnalysisKind, BlockEnv, CfgEnv, EVMError, Env,
+        ExecutionResult, Output, ResultAndState, TransactTo, TxEnv, B256, KECCAK_EMPTY, U256,
     },
-    EVM,
+    Database, InMemoryDB, EVM,
 };
-
-use types::{error::VmError, SignedTransaction};
+use std::collections::BTreeMap;
 
 pub struct EvmVM {
-    evm: EVM<VmState>,
+    evm: EVM<InMemoryDB>,
 }
 
 impl EvmVM {
-    pub(crate) fn new() -> Self {
-        let vm_state = VmState::new(StateDB::new());
+    pub(crate) fn new_memory() -> Self {
         let mut evm = EVM::new();
-        evm.database(vm_state);
+        let memory_db = InMemoryDB::default();
+        evm.database(memory_db);
 
         EvmVM { evm }
     }
@@ -98,10 +89,6 @@ impl EvmVM {
         );
 
         Ok(())
-    }
-
-    fn db(&mut self) -> &mut VmState {
-        self.evm.db().expect("EVMdb to not be moved")
     }
 
     pub fn to_post_acc(revm_acc: &AccountInfo) -> PostAccount {
@@ -266,95 +253,13 @@ impl EvmVM {
         }
     }
 
-    fn fill_tx_env(&mut self, tx_raw: &SignedTransaction) -> std::result::Result<(), VmError> {
-        self.evm.env.tx.caller = AddressConverter::to_evm_address(tx_raw.sender())?;
-        self.evm.env.tx.gas_limit = tx_raw.gas_limit();
-        self.evm.env.tx.gas_price = U256::from(tx_raw.gas_price());
-        self.evm.env.tx.gas_priority_fee = None;
-        if tx_raw.to().is_empty() {
-            self.evm.env.tx.transact_to = TransactTo::create();
-        } else {
-            let to = AddressConverter::to_evm_address(tx_raw.to())?;
-            self.evm.env.tx.transact_to = TransactTo::Call(to);
-        }
-
-        self.evm.env.tx.value = U256::from(tx_raw.value());
-        self.evm.env.tx.data = Bytes::from(tx_raw.payload().to_vec());
-
-        let chain_id = match u64::from_str_radix(tx_raw.chain_id(), 10) {
-            Ok(value) => value,
-            Err(e) => {
-                return Err(VmError::ValueConvertError {
-                    error: format!(
-                        "chain id {} convert error {}",
-                        tx_raw.chain_id(),
-                        e.to_string()
-                    ),
-                });
-            }
-        };
-        self.evm.env.tx.chain_id = Some(chain_id);
-        self.evm.env.tx.nonce = Some(tx_raw.nonce());
-        self.evm.env.tx.access_list.clear();
-
-        Ok(())
-    }
-
-    pub(crate) fn fill_block_env(
+    pub fn call<DB: Database>(
         &mut self,
-        header: &LedgerHeader,
-    ) -> std::result::Result<(), VmError> {
-        self.evm.env.block.number = U256::from(header.get_height());
-        self.evm.env.block.coinbase = AddressConverter::to_evm_address(header.get_proposer())?;
-        self.evm.env.block.timestamp = U256::from(header.get_timestamp());
-
-        self.evm.env.block.prevrandao = Some(B256::from(U256::from(1)));
-        self.evm.env.block.difficulty = U256::ZERO;
-        self.evm.env.block.basefee = U256::ZERO;
-        self.evm.env.block.gas_limit = U256::MAX;
-        Ok(())
-    }
-
-    pub(crate) fn fill_cfg_env(
-        &mut self,
-        header: &LedgerHeader,
-    ) -> std::result::Result<(), VmError> {
-        let chain_id = match u64::from_str_radix(header.get_chain_id(), 10) {
-            Ok(value) => value,
-            Err(e) => {
-                return Err(VmError::ValueConvertError {
-                    error: format!(
-                        "chain id {} convert error {}",
-                        header.get_chain_id(),
-                        e.to_string()
-                    ),
-                });
-            }
-        };
-        self.evm.env.cfg.chain_id = U256::from(chain_id);
-        self.evm.env.cfg.spec_id = revm::primitives::CANCUN;
-        self.evm.env.cfg.perf_all_precompiles_have_balance = false;
-        self.evm.env.cfg.perf_analyse_created_bytecodes = AnalysisKind::Analyse;
-        Ok(())
-    }
-
-    pub fn call(
-        &mut self,
-        transaction: &SignedTransaction,
-    ) -> std::result::Result<ResultAndState, VmError> {
-        self.fill_tx_env(&transaction)?;
-
-        // main execution.
-        let out = self.evm.transact();
-        let ret_and_state = match out {
-            Ok(ret_and_state) => ret_and_state,
-            Err(e) => {
-                return Err(VmError::VMExecuteError {
-                    hash: transaction.hash_hex(),
-                    message: format!("{:?}", e),
-                });
-            }
-        };
-        Ok(ret_and_state)
+        env: Env,
+        db: DB,
+    ) -> std::result::Result<ResultAndState, EVMError<DB::Error>> {
+        let mut evm = EVM::with_env(env);
+        evm.database(db);
+        evm.transact()
     }
 }

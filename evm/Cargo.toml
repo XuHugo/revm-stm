@@ -1,0 +1,18 @@
+[package]
+name = "evm"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+revm = { version = "3.3.0" }
+statedb = { path = "../statedb", version = "0.1.0" }
+anyhow = "1.0.62"
+tracing = { version = "0.1", default-features = false }
+derive_more = "0.99"
+primitive-types = { version = "0.12", default-features = false }
+hex = { version = "0.4", default-features = false }
+bytes = "1.4.0"
+alloy-primitives = { version = "0.7.2", default-features = false, features = [
+    "rlp",
+] }
